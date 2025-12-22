@@ -1,5 +1,6 @@
 # ==========================================================
 # High-Confidence Scam & Phishing Detection Telegram Bot
+# Java-free | Cloud-ready | Explainable Security Logic
 # Author: Ebin
 # ==========================================================
 
@@ -12,30 +13,27 @@ from telegram.ext import (
     filters
 )
 
+import os
 import re
 import base64
 import requests
 import tldextract
 import Levenshtein
-import language_tool_python
-import os
 
 # =========================
-# API KEYS
+# ENVIRONMENT VARIABLES
 # =========================
-
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 VIRUSTOTAL_API_KEY = os.getenv("VIRUSTOTAL_API_KEY")
 VT_URL = "https://www.virustotal.com/api/v3/urls/"
 
 # =========================
-# INIT
+# USER DATA
 # =========================
-tool = language_tool_python.LanguageTool("en-US")
 user_language = {}
 
 # =========================
-# OFFICIAL ROOT DOMAINS
+# SECURITY CONFIG
 # =========================
 OFFICIAL_DOMAINS = [
     "paytm.com", "amazon.in", "flipkart.com",
@@ -47,21 +45,21 @@ HIGH_RISK_TLDS = [".xyz", ".top", ".click", ".tk", ".info"]
 
 SCAM_KEYWORDS = [
     "urgent", "verify", "account blocked",
-    "kyc", "suspended", "click immediately"
+    "kyc", "suspended", "click immediately",
+    "limited time", "free", "winner"
 ]
 
 # =========================
 # USER MESSAGES
 # =========================
-
 START_MSG = (
     "👋 *Welcome to Cyber Scam Detection Bot*\n\n"
-    "🛡️ *What this bot does:*\n"
-    "• Detects scam & phishing messages\n"
-    "• Identifies fake or impersonated domains\n"
-    "• Checks links against malware databases\n\n"
-    "⚠️ *Note:* This tool provides safety guidance, not absolute decisions.\n\n"
-    "🌐 Choose your preferred language:\n"
+    "🛡️ *What I do:*\n"
+    "• Detect scam & phishing messages\n"
+    "• Identify fake or impersonated domains\n"
+    "• Check links for malware & reputation\n\n"
+    "⚠️ This tool provides *safety guidance*, not absolute decisions.\n\n"
+    "🌐 Choose language:\n"
     "1️⃣ English\n"
     "2️⃣ മലയാളം"
 )
@@ -71,16 +69,16 @@ CONFIDENCE_SCALE = (
     "• 90–95% → Very High Risk\n"
     "• 70–89% → Suspicious\n"
     "• Below 70% → Low Risk\n\n"
-    "⚠️ Always verify with official sources."
+    "⚠️ Always verify using official apps or websites."
 )
 
-EN_CLASSIFICATION = {
+EN_CLASS = {
     "DANGEROUS": "🚫 *DANGEROUS* — Do NOT click or respond.",
-    "SUSPICIOUS": "⚠️ *SUSPICIOUS* — Verify manually before acting.",
-    "SAFE": "✅ *LOW RISK* — No strong indicators detected."
+    "SUSPICIOUS": "⚠️ *SUSPICIOUS* — Verify before acting.",
+    "SAFE": "✅ *LOW RISK* — No strong scam indicators found."
 }
 
-ML_CLASSIFICATION = {
+ML_CLASS = {
     "DANGEROUS": "🚫 *അപകടകരം* — ക്ലിക്ക് ചെയ്യരുത്.",
     "SUSPICIOUS": "⚠️ *സംശയാസ്പദം* — സ്ഥിരീകരിക്കുക.",
     "SAFE": "✅ *കുറഞ്ഞ അപകടസാധ്യത* — ശക്തമായ തട്ടിപ്പ് സൂചനകൾ ഇല്ല."
@@ -88,8 +86,8 @@ ML_CLASSIFICATION = {
 
 DISCLAIMER = (
     "\n\nℹ️ *Disclaimer:*\n"
-    "This analysis is advisory. Attackers continuously evolve techniques.\n"
-    "Always confirm directly via official apps or websites."
+    "This analysis is advisory. Attackers constantly change techniques.\n"
+    "Always confirm directly through official channels."
 )
 
 # =========================
@@ -100,25 +98,28 @@ def extract_links(text):
     return re.findall(r'https?://\S+', text)
 
 
-def grammar_score(text):
-    matches = tool.check(text)
-    return len(matches) / max(len(text.split()), 1)
+def language_behavior_score(text):
+    score = 0
+    if text.isupper():
+        score += 1
+    if text.count("!") > 2:
+        score += 1
+    if len(text.split()) < 4:
+        score += 1
+    return score
 
 
 def keyword_score(text):
     return sum(1 for k in SCAM_KEYWORDS if k in text.lower())
 
 
-def domain_parts(url):
+def root_domain(url):
     ext = tldextract.extract(url)
     return f"{ext.domain}.{ext.suffix}"
 
 
 def similarity_score(domain):
-    scores = []
-    for real in OFFICIAL_DOMAINS:
-        s = Levenshtein.ratio(domain, real)
-        scores.append((s, real))
+    scores = [(Levenshtein.ratio(domain, real), real) for real in OFFICIAL_DOMAINS]
     return max(scores)
 
 
@@ -139,10 +140,9 @@ def virustotal_check(url):
         mal = stats.get("malicious", 0)
         sus = stats.get("suspicious", 0)
 
-        return mal * 3 + sus * 2, f"VirusTotal detections → {mal} malicious, {sus} suspicious"
+        return mal * 3 + sus * 2, f"VirusTotal: {mal} malicious, {sus} suspicious"
     except:
         return 0, "VirusTotal check failed"
-
 
 # =========================
 # CORE ANALYSIS
@@ -153,7 +153,7 @@ def analyze_links(text):
     reasons = []
 
     for link in extract_links(text):
-        domain = domain_parts(link)
+        domain = root_domain(link)
 
         if domain in OFFICIAL_DOMAINS:
             reasons.append("Domain matches official source")
@@ -180,15 +180,14 @@ def analyze_message(text):
     risk = 0
     reasons = []
 
-    g = grammar_score(text)
-    if g > 0.1:
-        risk += 1
-        reasons.append("Language inconsistencies detected")
+    risk += language_behavior_score(text)
+    if language_behavior_score(text):
+        reasons.append("Suspicious message structure")
 
     k = keyword_score(text)
     if k:
         risk += k
-        reasons.append("Scam-related keywords found")
+        reasons.append("Scam-related keywords detected")
 
     lr, lr_reasons = analyze_links(text)
     risk += lr
@@ -204,7 +203,6 @@ def analyze_message(text):
         label = "SAFE"
 
     return label, confidence, reasons
-
 
 # =========================
 # TELEGRAM HANDLERS
@@ -236,7 +234,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if user_language[user_id] == "EN":
         reply = (
             f"🔍 *Analysis Result*\n\n"
-            f"*Classification:* {EN_CLASSIFICATION[label]}\n"
+            f"*Classification:* {EN_CLASS[label]}\n"
             f"*Confidence:* {confidence}%\n\n"
             f"*Reasons:*\n{reason_text}\n\n"
             f"{CONFIDENCE_SCALE}"
@@ -245,14 +243,13 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         reply = (
             f"🔍 *വിശകലന ഫലം*\n\n"
-            f"*വർഗ്ഗീകരണം:* {ML_CLASSIFICATION[label]}\n"
+            f"*വർഗ്ഗീകരണം:* {ML_CLASS[label]}\n"
             f"*വിശ്വാസനില:* {confidence}%\n\n"
             f"*കാരണങ്ങൾ:*\n{reason_text}\n\n"
             f"{DISCLAIMER}"
         )
 
     await update.message.reply_text(reply, parse_mode="Markdown")
-
 
 # =========================
 # MAIN
