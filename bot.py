@@ -254,7 +254,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     label, confidence, reasons = analyze_message(text)
     image_url = get_risk_image(confidence)
     reason_text = "\n".join(f"• {r}" for r in reasons)
-
     banner = risk_banner(label)
     reply = (
     f"{banner}"
@@ -267,8 +266,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     f"{reason_text if reason_text else '• No strong indicators detected'}"
     f"{DISCLAIMER}"
     )
-
-
     await update.message.reply_photo(
         photo=image_url,
         caption=reply,
