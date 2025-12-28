@@ -108,6 +108,24 @@ DISCLAIMER = (
 )
 
 # =========================
+# RISK IMAGES
+# =========================
+
+RISK_IMAGES = [
+    (10, "https://raw.githubusercontent.com/USERNAME/REPO/main/images/risk_0_10.png"),
+    (20, "https://raw.githubusercontent.com/USERNAME/REPO/main/images/risk_11_20.png"),
+    (30, "https://raw.githubusercontent.com/USERNAME/REPO/main/images/risk_21_30.png"),
+    (40, "https://raw.githubusercontent.com/USERNAME/REPO/main/images/risk_31_40.png"),
+    (50, "https://raw.githubusercontent.com/USERNAME/REPO/main/images/risk_41_50.png"),
+    (60, "https://raw.githubusercontent.com/USERNAME/REPO/main/images/risk_51_60.png"),
+    (70, "https://raw.githubusercontent.com/USERNAME/REPO/main/images/risk_61_70.png"),
+    (80, "https://raw.githubusercontent.com/USERNAME/REPO/main/images/risk_71_80.png"),
+    (90, "https://raw.githubusercontent.com/USERNAME/REPO/main/images/risk_81_90.png"),
+    (100,"https://raw.githubusercontent.com/USERNAME/REPO/main/images/risk_91_100.png"),
+]
+
+
+# =========================
 # Cache for VirusTotal results
 # =========================
 
