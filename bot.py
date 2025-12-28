@@ -108,6 +108,12 @@ DISCLAIMER = (
 )
 
 # =========================
+# Cache for VirusTotal results
+# =========================
+
+vt_cache = {}  # url -> (risk, reason)
+
+# =========================
 # HELPER FUNCTIONS
 # =========================
 
@@ -145,21 +151,36 @@ def tld_risk(domain):
 
 
 def virustotal_check(url):
+    # 🔹 Check cache first
+    if url in vt_cache:
+        return vt_cache[url]
+
     try:
         url_id = base64.urlsafe_b64encode(url.encode()).decode().strip("=")
         headers = {"x-apikey": VIRUSTOTAL_API_KEY}
         r = requests.get(VT_URL + url_id, headers=headers, timeout=10)
 
         if r.status_code != 200:
-            return 0, "VirusTotal scan unavailable"
+            result = (0, "VirusTotal scan unavailable")
+            vt_cache[url] = result
+            return result
 
         stats = r.json()["data"]["attributes"]["last_analysis_stats"]
         mal = stats.get("malicious", 0)
         sus = stats.get("suspicious", 0)
 
-        return mal * 3 + sus * 2, f"VirusTotal: {mal} malicious, {sus} suspicious"
-    except:
-        return 0, "VirusTotal check failed"
+        risk = mal * 3 + sus * 2
+        result = (risk, f"VirusTotal: {mal} malicious, {sus} suspicious")
+
+        # 🔹 Store in cache
+        vt_cache[url] = result
+        return result
+
+    except Exception:
+        result = (0, "VirusTotal check failed")
+        vt_cache[url] = result
+        return result
+
 
 # =========================
 # CORE ANALYSIS
