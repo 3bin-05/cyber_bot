@@ -232,14 +232,9 @@ def analyze_message(text):
             risk += tr
             reasons.append("High-risk domain extension")
 
-        vt_checked = False
         vt_risk, vt_reason = virustotal_check(link)
         risk += vt_risk
         reasons.append(vt_reason)
-        vt_checked = True
-
-    if not vt_checked:
-        reasons.append("VirusTotal scan not required (link appears safe)")
 
     confidence = min(10 + risk * 12, 95)
 
