@@ -131,7 +131,6 @@ DISCLAIMER = (
     "• Always verify messages via official apps or websites.\n"
 )
 
-
 # =========================
 # HELPER FUNCTIONS
 # =========================
@@ -232,9 +231,27 @@ def analyze_message(text):
 # =========================
 # TELEGRAM HANDLERS
 # =========================
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+
+    if user_id in user_language:
+        await update.message.reply_text(
+            "👋 Welcome back!\n\n"
+            "Send a message or link to analyze.\n"
+            "Use /lang to change language."
+        )
+    else:
+        await update.message.reply_text(START_MSG, parse_mode="Markdown")
+
+async def change_language(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_language.pop(update.effective_user.id, None)
-    await update.message.reply_text(START_MSG, parse_mode="Markdown")
+    await update.message.reply_text(
+        "🌐 *Change Language*\n\n"
+        "1️⃣ English\n"
+        "2️⃣ മലയാളം",
+        parse_mode="Markdown"
+    )
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
@@ -243,29 +260,36 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if user_id not in user_language:
         if text == "1":
             user_language[user_id] = "EN"
-            await update.message.reply_text("Language set to English.")
+            await update.message.reply_text("✅ Language set to English.\nSend a message to analyze.")
         elif text == "2":
             user_language[user_id] = "ML"
-            await update.message.reply_text("ഭാഷ മലയാളമായി സജ്ജീകരിച്ചു.")
+            await update.message.reply_text("✅ ഭാഷ മലയാളമായി സജ്ജീകരിച്ചു.\nസന്ദേശം അയയ്ക്കുക.")
         else:
-            await update.message.reply_text("Choose:\n1️⃣ English\n2️⃣ മലയാളം")
+            await update.message.reply_text(
+                "🌐 Please select a language:\n"
+                "1️⃣ English\n"
+                "2️⃣ മലയാളം\n\n"
+                "Use /lang anytime to change it."
+            )
         return
 
     label, confidence, reasons = analyze_message(text)
     image_url = get_risk_image(confidence)
     reason_text = "\n".join(f"• {r}" for r in reasons)
     banner = risk_banner(label)
+
     reply = (
-    f"{banner}"
-    f"*🔍 Analysis Summary*\n\n"
-    f"*🧪 Classification:* "
-    f"{EN_CLASS[label] if user_language[user_id]=='EN' else ML_CLASS[label]}\n"
-    f"*📈 Confidence Score:* {confidence}%\n\n"
-    f"{CONFIDENCE_MEANING}\n"
-    f"*🧠 Detection Reasons:*\n"
-    f"{reason_text if reason_text else '• No strong indicators detected'}"
-    f"{DISCLAIMER}"
+        f"{banner}"
+        f"*🔍 Analysis Summary*\n\n"
+        f"*🧪 Classification:* "
+        f"{EN_CLASS[label] if user_language[user_id]=='EN' else ML_CLASS[label]}\n"
+        f"*📈 Confidence Score:* {confidence}%\n\n"
+        f"{CONFIDENCE_MEANING}\n"
+        f"*🧠 Detection Reasons:*\n"
+        f"{reason_text if reason_text else '• No strong indicators detected'}"
+        f"{DISCLAIMER}"
     )
+
     await update.message.reply_photo(
         photo=image_url,
         caption=reply,
@@ -279,6 +303,7 @@ def main():
     print("🤖 Cyber Scam Bot running...")
     app = ApplicationBuilder().token(BOT_TOKEN).build()
     app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("lang", change_language))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     app.run_polling()
 
