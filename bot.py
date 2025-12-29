@@ -55,14 +55,8 @@ ABUSEIPDB_URL = "https://api.abuseipdb.com/api/v2/check"
 # =========================
 user_language = {}
 vt_cache = {}
-vt_cache[url] = {
-    "risk": risk,
-    "reason": vt_reason,
-    "cached": False
-}
 sb_cache = {}
 abuse_cache = {}
-
 
 # =========================
 # OFFICIAL DOMAINS & RULES
