@@ -320,6 +320,7 @@ def virustotal_check(url):
 
 def ai_scam_check(message):
     if not OPENROUTER_API_KEY:
+        print("DEBUG: OpenRouter API key not set")
         return {"label": "UNKNOWN", "confidence": 0, "reason": "OpenRouter API not configured"}
 
     url = "https://openrouter.ai/api/v1/chat/completions"
@@ -354,13 +355,77 @@ label, confidence, reason
     }
 
     try:
+        print(f"DEBUG: Sending request to OpenRouter for message: {message[:50]}...")
         r = requests.post(url, headers=headers, json=payload, timeout=15)
-        data = r.json()
-        response = data["choices"][0]["message"]["content"]
-        return json.loads(response)
-    except:
-        return {"label": "UNKNOWN", "confidence": 0, "reason": "AI check failed"}
+        print(f"DEBUG: Response status: {r.status_code}")
+        if r.status_code != 200:
+            print(f"DEBUG: Error response: {r.text}")
+            return {"label": "UNKNOWN", "confidence": 0, "reason": f"API error: {r.status_code}: {r.text[:200]}"}
 
+        data = r.json()
+        print(f"DEBUG: Full response: {data}")
+
+        # --- Robustly extract assistant content from different response shapes ---
+        response_text = None
+        try:
+            response_text = data["choices"][0]["message"]["content"]
+        except Exception:
+            pass
+
+        if not response_text:
+            try:
+                # Handle content as list of parts
+                content = data["choices"][0]["message"].get("content")
+                if isinstance(content, list):
+                    parts = []
+                    for c in content:
+                        if isinstance(c, dict):
+                            parts.append(c.get("text") or c.get("content") or "")
+                        else:
+                            parts.append(str(c))
+                    response_text = "".join(parts).strip()
+                else:
+                    response_text = str(content)
+            except Exception:
+                pass
+
+        if not response_text:
+            try:
+                response_text = data["choices"][0].get("text")
+            except Exception:
+                response_text = None
+
+        if not response_text:
+            # Fallback to raw response body
+            response_text = r.text
+
+        print(f"DEBUG: AI response content (raw): {response_text[:500]}")
+
+        # Try to extract a JSON object from the response text
+        m = re.search(r"(\{.*\})", response_text, re.S)
+        json_str = m.group(1) if m else response_text
+
+        try:
+            result = json.loads(json_str)
+            print(f"DEBUG: Parsed result: {result}")
+            if not isinstance(result, dict):
+                raise ValueError("Parsed JSON is not an object")
+            return result
+        except Exception as e_json:
+            # Try ast.literal_eval as a last resort (handles single quotes)
+            try:
+                import ast
+                result = ast.literal_eval(json_str)
+                if isinstance(result, dict):
+                    print(f"DEBUG: Parsed via ast: {result}")
+                    return result
+            except Exception as e_ast:
+                print(f"DEBUG: Failed to parse AI response as JSON (json error: {e_json}; ast error: {e_ast})")
+                return {"label": "UNKNOWN", "confidence": 0, "reason": "AI returned unparsable response"}
+
+    except Exception as e:
+        print(f"DEBUG: Exception in ai_scam_check: {e}")
+        return {"label": "UNKNOWN", "confidence": 0, "reason": "AI check failed"}
 
 # =========================
 # CORE ANALYSIS (FIXED)
