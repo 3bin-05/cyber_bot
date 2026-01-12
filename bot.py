@@ -36,6 +36,7 @@ from telegram.ext import (
 import re
 import base64
 import requests
+import json
 import tldextract
 import Levenshtein
 
@@ -46,6 +47,7 @@ GOOGLE_SAFE_BROWSING_KEY = os.getenv("GOOGLE_SAFE_BROWSING_KEY")
 ABUSEIPDB_API_KEY = os.getenv("ABUSEIPDB_API_KEY")
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 VIRUSTOTAL_API_KEY = os.getenv("VIRUSTOTAL_API_KEY")
+OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 VT_URL = "https://www.virustotal.com/api/v3/urls/"
 SAFE_BROWSING_URL = "https://safebrowsing.googleapis.com/v4/threatMatches:find"
 ABUSEIPDB_URL = "https://api.abuseipdb.com/api/v2/check"
@@ -316,12 +318,71 @@ def virustotal_check(url):
         return result["risk"], f"{result['reason']} (fresh scan)"
 
 
+def ai_scam_check(message):
+    if not OPENROUTER_API_KEY:
+        return {"label": "UNKNOWN", "confidence": 0, "reason": "OpenRouter API not configured"}
+
+    url = "https://openrouter.ai/api/v1/chat/completions"
+
+    headers = {
+        "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+        "Content-Type": "application/json",
+        "HTTP-Referer": "https://your-project-name",
+        "X-Title": "Cyber Scam Detection Bot"
+    }
+
+    payload = {
+        "model": "mistralai/mistral-7b-instruct",
+        "messages": [
+            {
+                "role": "user",
+                "content": f"""
+You are a cybersecurity assistant.
+
+Analyze the following message and classify it as SAFE, SUSPICIOUS, or SCAM.
+Provide a confidence score (0–100) and a short reason.
+
+Message:
+"{message}"
+
+Respond ONLY in JSON with keys:
+label, confidence, reason
+"""
+            }
+        ],
+        "temperature": 0.2
+    }
+
+    try:
+        r = requests.post(url, headers=headers, json=payload, timeout=15)
+        data = r.json()
+        response = data["choices"][0]["message"]["content"]
+        return json.loads(response)
+    except:
+        return {"label": "UNKNOWN", "confidence": 0, "reason": "AI check failed"}
+
+
 # =========================
 # CORE ANALYSIS (FIXED)
 # =========================
 def analyze_message(text):
     risk = 0
     reasons = []
+
+    # AI Scam Check
+    ai_result = ai_scam_check(text)
+    ai_label = ai_result.get("label", "UNKNOWN")
+    ai_confidence = ai_result.get("confidence", 0)
+    ai_reason = ai_result.get("reason", "AI check unavailable")
+
+    if ai_label == "SCAM" and ai_confidence >= 80:
+        risk += 10  # Boost risk
+        reasons.append(f"AI Detection: {ai_reason}")
+    elif ai_label in ["SUSPICIOUS", "SCAM"]:
+        risk += 5
+        reasons.append(f"AI Detection: {ai_reason}")
+    else:
+        reasons.append(f"AI Detection: {ai_reason}")
 
     k = keyword_score(text)
     if k:
